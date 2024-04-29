@@ -1,5 +1,7 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
+import { v4 as uuidv4 } from 'uuid'
+
 import "./index.css"
 
 import { io } from 'socket.io-client'
@@ -8,11 +10,36 @@ const URL = process.env.NODE_ENV === 'production' ? undefined : 'http://localhos
 
 const socket = io(URL, { transports : ['websocket'] })
 
+type Map = {
+  size: number,
+  cells: number[],
+}
+
 const App = () => {
+  const [map, setMap] = useState<Map|null>(null)
+  console.log(map)
+
   useEffect(() => {
     socket.connect()
 
-    socket.on('connect', () => { console.log("connected") })
+    socket.on('connect', () => {
+      // const localStorageUserId = localStorage.getItem("userId")
+
+      // let userId = null
+
+      // if (localStorageUserId !== null) {
+      //   userId = localStorageUserId
+      // } else {
+      //   userId = uuidv4()
+      //   localStorage.setItem("userId", userId)
+      // }
+
+      // socket.emit("init", { userId })
+      socket.emit("init")
+    })
+    socket.on('init', (map) => {
+      setMap(map)
+    })
     socket.on('disconnect', () => { console.log("disconnected") })
     socket.on('fire', () => { console.log("on: under attack") })
 
@@ -20,75 +47,56 @@ const App = () => {
       socket.disconnect()
 
       socket.off('connect', () => { console.log("connected") })
+      socket.off('init', () => { console.log("init") })
       socket.off('disconnect', () => { console.log("disconnected") })
       socket.off('fire', () => { console.log("off: under attack") })
     }
   }, [])
 
-  // const x = 2
-  // const y = 2
-  // const cellPerRow = 5
-  // const index = y * cellPerRow + x
-  const mapSize = 10
-  const cellCount = mapSize * mapSize
-  const map = Array(cellCount).fill(0)
-
-  const orientations = {
-    horizontal: "horizontal",
-    vertical: "vertical",
+  if (map === null) {
+    return null
   }
-
-  const ships = [
-    {
-      cell: { x: 0, y: 0 },
-      length: 5,
-      orientation: orientations.horizontal,
-    },
-    {
-      cell: { x: 0, y: 2 },
-      length: 3,
-      orientation: orientations.horizontal,
-    },
-    {
-      cell: { x: 3, y: 5 },
-      length: 3,
-      orientation: orientations.horizontal,
-    },
-  ]
-
-  for (let i = 0; i < ships.length; i++) {
-    const ship = ships[i]
-    const cell = ship.cell
-
-    for (let j = 0; j < ship.length; j++) {
-      const index = cell.y * mapSize + cell.x
-      map[index] = 1
-      cell.x += 1
-    }
-  }
-  console.log(map)
 
   return (
-    <div>
-      {/* <button type="button" onClick={() => socket.emit("fire")}>Fire</button> */}
-      <div className="w-1/3 flex flex-wrap aspect-square">
-        {map.map((value, index) => {
-          const backgroundColor = value === 0 ? "transparent" : "blue"
+    <div className="py-6 flex">
+      <div className="px-3 w-1/2">
+        <div className="flex flex-wrap aspect-square">
+          {map.cells.map((value, index) => {
+            const backgroundColor = value === 0 ? "transparent" : "blue"
 
-          return (
-            <button 
-              type="button"
-              className="border border-gray-500 aspect-square"
-              style={{
-                width: `${100 / mapSize}%`,
-                fontSize: "12px",
-                backgroundColor,
-              }}
-            >
-              {/* {index} */}
-            </button>
-          )
-        })}
+            return (
+              <div 
+                key={index}
+                className="border border-gray-500 aspect-square"
+                style={{
+                  width: `${100 / map.size}%`,
+                  fontSize: "12px",
+                  backgroundColor,
+                }}
+              >
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className="px-3 w-1/2">
+        <div className="flex flex-wrap aspect-square">
+          {map.cells.map((value, index) => {
+            return (
+              <button 
+                key={index}
+                type="button"
+                className="border border-gray-500 aspect-square bg-transparent hover:bg-gray-200"
+                style={{
+                  width: `${100 / map.size}%`,
+                  fontSize: "12px",
+                }}
+                onClick={() => socket.emit("fire", index)}
+              >
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
