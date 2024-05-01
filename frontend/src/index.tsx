@@ -23,23 +23,24 @@ const App = () => {
     socket.connect()
 
     socket.on('connect', () => {
-      // const localStorageUserId = localStorage.getItem("userId")
+      let userId = null
 
-      // let userId = null
+      const localStorageUserId = localStorage.getItem("userId")
 
-      // if (localStorageUserId !== null) {
-      //   userId = localStorageUserId
-      // } else {
-      //   userId = uuidv4()
-      //   localStorage.setItem("userId", userId)
-      // }
+      if (localStorageUserId !== null) {
+        userId = localStorageUserId
+      } else {
+        userId = uuidv4()
+        localStorage.setItem("userId", userId)
+      }
 
-      // socket.emit("init", { userId })
-      socket.emit("init")
+      socket.emit("init", { userId })
     })
+
     socket.on('init', (map) => {
       setMap(map)
     })
+
     socket.on('disconnect', () => { console.log("disconnected") })
     socket.on('fire', () => { console.log("on: under attack") })
 
