@@ -40,6 +40,7 @@ const addUserToUsersList = (state:State, userId:string, socketId: string) => {
   if (userExists) {
     state.users[existingUserIndex].socketId = socketId
   } else {
+    console.log("new user")
     state.users.push({
       id: userId,
       socketId: socketId,
@@ -132,6 +133,14 @@ const broadcastMapToSender = (io:Server, socket:Socket, map:Map) => {
   io.to(socket.id).emit("init", map);
 }
 
+const removeUserFromUsersList = (state:State, socket:Socket) => {
+  const userIndex = state.users.findIndex(user => user.socketId === socket.id)
+  state.users = [
+    ...state.users.slice(0, userIndex),
+    ...state.users.slice(userIndex + 1),
+  ]
+}
+
 const main = () => {
   const state:State = {
     p1: null,
@@ -164,8 +173,7 @@ const main = () => {
 
     socket.on('disconnect', () => {
       console.log('user disconnected')
-      // TODO: Remove user from users list when user is disconnected
-      console.log(state)
+      removeUserFromUsersList(state, socket)
     })
   })
 }
