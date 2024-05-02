@@ -18,12 +18,7 @@ const io = new socket_io_1.Server(server);
 app.get('/', (req, res) => {
     res.send('<h1>Hello world</h1>');
 });
-const state = {
-    p1: null,
-    p2: null,
-    users: [],
-};
-const addOrUpdateUser = (userId, socketId) => {
+const addUserToUsersList = (state, userId, socketId) => {
     const existingUserIndex = state.users.findIndex(user => user.id === userId);
     const userExists = existingUserIndex !== -1;
     if (userExists) {
@@ -36,16 +31,13 @@ const addOrUpdateUser = (userId, socketId) => {
         });
     }
 };
-const generateEmptyMap = (mapSize) => {
+const generateMap = () => {
+    const mapSize = 10;
     const cellCount = mapSize * mapSize;
-    return {
+    const map = {
         size: 10,
         cells: Array(cellCount).fill(0)
     };
-};
-const generateMap = () => {
-    const mapSize = 10;
-    const map = generateEmptyMap(mapSize);
     const orientations = {
         horizontal: "horizontal",
         vertical: "vertical",
@@ -97,44 +89,54 @@ const generateMap = () => {
     }
     return map;
 };
-const player1Joined = () => {
+const player1Joined = (state) => {
+    return state.p1 !== null;
 };
-io.on('connect', (socket) => {
-    console.log('a user connected');
-    socket.on("init", (args) => {
-        const userId = args.userId;
-        addOrUpdateUser(userId, socket.id);
-        const map = generateMap();
-        /*
-        generate map
-        add ships to map
-    
-        if player1 doesn't exist
-          add current user as player 1
-          broadcast map to sender
-        else if player2 doesn't exist
-          add current user as player 2
-          broadcast map to sender
-        */
-        if (state.p1 === null) {
-            state.p1 = userId;
-        }
-        // check and connect to player 2
-        if (state.p2 === null &&
-            userId !== state.p1) {
-            state.p2 = userId;
-        }
-        // broadcast to sender with the map
-        io.to(socket.id).emit("init", map);
-        console.log(state);
+const joinAsPlayer1 = (state, userId) => {
+    state.p1 = userId;
+};
+const player2Joined = (state) => {
+    return state.p2 !== null;
+};
+const joinAsPlayer2 = (state, userId) => {
+    if (userId !== state.p1) {
+        state.p2 = userId;
+    }
+};
+const broadcastMapToSender = (io, socket, map) => {
+    io.to(socket.id).emit("init", map);
+};
+const main = () => {
+    const state = {
+        p1: null,
+        p2: null,
+        users: [],
+    };
+    io.on('connect', (socket) => {
+        console.log('a user connected');
+        socket.on("init", (args) => {
+            const userId = args.userId;
+            addUserToUsersList(state, userId, socket.id);
+            const map = generateMap();
+            if (!player1Joined(state)) {
+                joinAsPlayer1(state, userId);
+            }
+            else if (!player2Joined(state)) {
+                joinAsPlayer2(state, userId);
+            }
+            broadcastMapToSender(io, socket, map);
+        });
+        socket.on("fire", (args) => {
+            console.log(args);
+        });
+        socket.on('disconnect', () => {
+            console.log('user disconnected');
+            // TODO: Remove user from users list when user is disconnected
+            console.log(state);
+        });
     });
-    socket.on("fire", (args) => {
-        console.log(args);
-    });
-    socket.on('disconnect', () => {
-        console.log('user disconnected');
-    });
-});
+};
+main();
 const port = 4000;
 server.listen(port, () => {
     console.log(`server running at http://localhost:${port}`);
