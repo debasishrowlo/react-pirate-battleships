@@ -22,31 +22,42 @@ const cellTypes = {
   miss: 3,
 }
 
-const Map = ({ map } : { map: Map }) => {
+const Map = ({
+  map,
+  isDisabled,
+} : {
+  map: Map,
+  isDisabled: boolean,
+}) => {
   return (
     <div className="flex flex-wrap aspect-square">
       {map.cells.map((value, index) => {
-        let backgroundColor = "transparent"
+        let bgClasses = "bg-transparent"
+
+        if (!isDisabled) {
+          bgClasses += " hover:bg-gray-200"
+        }
 
         if (value === cellTypes.ship) {
-          backgroundColor = "blue"
+          bgClasses = "bg-blue-500"
         } else if (value === cellTypes.damagedShip) {
-          backgroundColor = "red"
+          bgClasses = "bg-red-500"
         } else if (value === cellTypes.miss) {
-          backgroundColor = "gray"
+          bgClasses = "bg-gray-400"
         }
 
         return (
-          <div 
+          <button
+            type="button"
             key={index}
-            className="border border-gray-500 aspect-square"
+            className={`border border-gray-500 aspect-square ${bgClasses}`}
             style={{
               width: `${100 / map.size}%`,
               fontSize: "12px",
-              backgroundColor,
             }}
+            disabled={isDisabled}
           >
-          </div>
+          </button>
         )
       })}
     </div>
@@ -100,10 +111,10 @@ const App = () => {
   return (
     <div className="py-6 flex">
       <div className="px-3 w-1/2">
-        <Map map={map} />
+        <Map map={map} isDisabled={true} />
       </div>
       <div className="px-3 w-1/2">
-        <Map map={enemyMap} />
+        <Map map={enemyMap} isDisabled={false} />
       </div>
     </div>
   )
