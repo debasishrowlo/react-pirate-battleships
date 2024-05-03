@@ -111,26 +111,20 @@ const generateMap = () => {
   return map
 }
 
-const player1Joined = (state:State) => {
-  return state.p1 !== null
-}
-
-const joinAsPlayer1 = (state:State, userId:string) => {
-  state.p1 = userId
-}
-
-const player2Joined = (state:State) => {
-  return state.p2 !== null
-}
-
-const joinAsPlayer2 = (state:State, userId:string) => {
-  if (userId !== state.p1) {
-    state.p2 = userId
-  }
-}
-
 const broadcastMapToSender = (io:Server, socket:Socket, map:Map) => {
   io.to(socket.id).emit("init", map);
+}
+
+const joinGame = (state:State, userId:string) => {
+  if (state.p1 === null) {
+    state.p1 = userId
+  } else if (state.p2 === null) {
+    if (userId !== state.p1) {
+      state.p2 = userId
+    } else {
+      // TODO: join as spectator
+    }
+  }
 }
 
 const removeUserFromUsersList = (state:State, socket:Socket) => {
@@ -155,17 +149,11 @@ const main = () => {
       const userId = args.userId
 
       addUserToUsersList(state, userId, socket.id)
+      
+      joinGame(state, userId)
 
       const map = generateMap()
-
-      if (!player1Joined(state)) {
-        joinAsPlayer1(state, userId)
-      } else if (!player2Joined(state)) {
-        joinAsPlayer2(state, userId)
-      }
-
       broadcastMapToSender(io, socket, map)
-      console.log(state)
     })
 
     socket.on("fire", (args) => {
