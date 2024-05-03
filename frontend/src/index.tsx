@@ -15,9 +15,47 @@ type Map = {
   cells: number[],
 }
 
+const cellTypes = {
+  empty: 0,
+  ship: 1,
+  damagedShip: 2,
+  miss: 3,
+}
+
+const Map = ({ map } : { map: Map }) => {
+  return (
+    <div className="flex flex-wrap aspect-square">
+      {map.cells.map((value, index) => {
+        let backgroundColor = "transparent"
+
+        if (value === cellTypes.ship) {
+          backgroundColor = "blue"
+        } else if (value === cellTypes.damagedShip) {
+          backgroundColor = "red"
+        } else if (value === cellTypes.miss) {
+          backgroundColor = "gray"
+        }
+
+        return (
+          <div 
+            key={index}
+            className="border border-gray-500 aspect-square"
+            style={{
+              width: `${100 / map.size}%`,
+              fontSize: "12px",
+              backgroundColor,
+            }}
+          >
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const App = () => {
   const [map, setMap] = useState<Map|null>(null)
-  console.log(map)
+  const [enemyMap, setEnemyMap] = useState<Map|null>(null)
 
   useEffect(() => {
     socket.connect()
@@ -37,8 +75,9 @@ const App = () => {
       socket.emit("init", { userId })
     })
 
-    socket.on('init', (map) => {
-      setMap(map)
+    socket.on('init', (data) => {
+      setMap(data.map)
+      setEnemyMap(data.enemyMap)
     })
 
     socket.on('disconnect', () => { console.log("disconnected") })
@@ -61,43 +100,10 @@ const App = () => {
   return (
     <div className="py-6 flex">
       <div className="px-3 w-1/2">
-        <div className="flex flex-wrap aspect-square">
-          {map.cells.map((value, index) => {
-            const backgroundColor = value === 0 ? "transparent" : "blue"
-
-            return (
-              <div 
-                key={index}
-                className="border border-gray-500 aspect-square"
-                style={{
-                  width: `${100 / map.size}%`,
-                  fontSize: "12px",
-                  backgroundColor,
-                }}
-              >
-              </div>
-            )
-          })}
-        </div>
+        <Map map={map} />
       </div>
       <div className="px-3 w-1/2">
-        <div className="flex flex-wrap aspect-square">
-          {map.cells.map((value, index) => {
-            return (
-              <button 
-                key={index}
-                type="button"
-                className="border border-gray-500 aspect-square bg-transparent hover:bg-gray-200"
-                style={{
-                  width: `${100 / map.size}%`,
-                  fontSize: "12px",
-                }}
-                onClick={() => socket.emit("fire", index)}
-              >
-              </button>
-            )
-          })}
-        </div>
+        <Map map={enemyMap} />
       </div>
     </div>
   )

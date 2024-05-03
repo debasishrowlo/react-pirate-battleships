@@ -48,7 +48,7 @@ const addUserToUsersList = (state:State, userId:string, socketId: string) => {
   }
 }
 
-const generateMap = () => {
+const generateMap = ():Map => {
   const mapSize = 10
   const cellCount = mapSize * mapSize
   const map = {
@@ -108,11 +108,40 @@ const generateMap = () => {
     }
   }
 
+  // TODO: temp code
+  map.cells[6] = 3
+  map.cells[20] = 2
+
   return map
 }
 
-const broadcastMapToSender = (io:Server, socket:Socket, map:Map) => {
-  io.to(socket.id).emit("init", map);
+const generateOpponentMap = ():Map => {
+  const mapSize = 10
+  const cellCount = mapSize * mapSize
+  const map = {
+    size: 10,
+    cells: Array(cellCount).fill(0)
+  }
+
+  map.cells[0] = 2
+  map.cells[1] = 2
+  map.cells[2] = 2
+
+  map.cells[3] = 3
+  map.cells[4] = 3
+  map.cells[5] = 3
+
+  return map
+}
+
+const broadcastMapsToSender = (
+  io:Server, socket:Socket, 
+  data:{
+    map: Map,
+    enemyMap: Map,
+  }
+) => {
+  io.to(socket.id).emit("init", data);
 }
 
 const joinGame = (state:State, userId:string) => {
@@ -152,8 +181,14 @@ const main = () => {
       
       joinGame(state, userId)
 
-      const map = generateMap()
-      broadcastMapToSender(io, socket, map)
+      const data:{
+        map: Map,
+        enemyMap: Map,
+      } = {
+        map: generateMap(),
+        enemyMap: generateOpponentMap(),
+      }
+      broadcastMapsToSender(io, socket, data)
     })
 
     socket.on("fire", (args) => {
