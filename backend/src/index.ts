@@ -165,6 +165,7 @@ const main = () => {
       }
 
       broadcastMapToSender(io, socket, map)
+      console.log(state)
     })
 
     socket.on("fire", (args) => {
