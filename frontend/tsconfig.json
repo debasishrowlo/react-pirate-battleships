@@ -22,7 +22,8 @@
       "src/modules.d.ts"
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "backend/*": ["../backend/*"]
     }
   },
   "include": [

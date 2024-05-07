@@ -3,6 +3,8 @@ import { createServer } from 'node:http'
 import { Socket, Server } from 'socket.io'
 const cors = require('cors')
 
+import { cellTypes } from "./shared"
+
 const app = express()
 app.use(cors({
   origin: 'http://localhost:3000', // TODO: disable CORS for production
@@ -23,8 +25,15 @@ type User = {
 }
 
 type State = {
-  p1: string|null,
-  p2: string|null,
+  p1: {
+    id: string|null,
+    map: Map,
+  },
+  p2: {
+    id: string|null,
+    map: Map,
+  },
+  turn: "p1" | "p2",
   users: User[],
 }
 
@@ -40,7 +49,6 @@ const addUserToUsersList = (state:State, userId:string, socketId: string) => {
   if (userExists) {
     state.users[existingUserIndex].socketId = socketId
   } else {
-    console.log("new user")
     state.users.push({
       id: userId,
       socketId: socketId,
@@ -123,15 +131,30 @@ const generateOpponentMap = ():Map => {
     cells: Array(cellCount).fill(0)
   }
 
-  map.cells[0] = 2
-  map.cells[1] = 2
-  map.cells[2] = 2
+  map.cells[0] = cellTypes.ship
+  map.cells[1] = cellTypes.ship
+  map.cells[2] = cellTypes.ship
+  map.cells[3] = cellTypes.ship
+  map.cells[4] = cellTypes.ship
 
-  map.cells[3] = 3
-  map.cells[4] = 3
-  map.cells[5] = 3
+  map.cells[5] = cellTypes.miss
+  map.cells[6] = cellTypes.miss
+  map.cells[7] = cellTypes.miss
 
   return map
+}
+
+const removeShips = (map:Map):Map => {
+  return {
+    ...map,
+    cells: map.cells.map(value => {
+      if (value === cellTypes.ship) {
+        return cellTypes.empty
+      }
+
+      return value
+    })
+  }
 }
 
 const broadcastMapsToSender = (
@@ -141,15 +164,15 @@ const broadcastMapsToSender = (
     enemyMap: Map,
   }
 ) => {
-  io.to(socket.id).emit("init", data);
+  io.to(socket.id).emit("init", data)
 }
 
 const joinGame = (state:State, userId:string) => {
-  if (state.p1 === null) {
-    state.p1 = userId
-  } else if (state.p2 === null) {
-    if (userId !== state.p1) {
-      state.p2 = userId
+  if (state.p1.id === null) {
+    state.p1.id = userId
+  } else if (state.p2.id === null) {
+    if (userId !== state.p1.id) {
+      state.p2.id = userId
     } else {
       // TODO: join as spectator
     }
@@ -166,8 +189,15 @@ const removeUserFromUsersList = (state:State, socket:Socket) => {
 
 const main = () => {
   const state:State = {
-    p1: null,
-    p2: null,
+    p1: {
+      id: null,
+      map: generateMap(),
+    },
+    p2: {
+      id: null,
+      map: generateOpponentMap(),
+    },
+    turn: "p1",
     users: [],
   }
 
@@ -181,18 +211,70 @@ const main = () => {
       
       joinGame(state, userId)
 
+      let map = null
+      let enemyMap = null
+
+      if (userId === state.p1.id) {
+        map = state.p1.map
+        enemyMap = state.p2.map
+      } else {
+        map = state.p2.map
+        enemyMap = state.p1.map
+      }
+
       const data:{
         map: Map,
         enemyMap: Map,
       } = {
-        map: generateMap(),
-        enemyMap: generateOpponentMap(),
+        map,
+        enemyMap: removeShips(enemyMap),
       }
+
       broadcastMapsToSender(io, socket, data)
+      console.log(state)
     })
 
+    type PlayerKey = "p1" | "p2"
+
     socket.on("fire", (args) => {
-      console.log(args)
+      // TODO: ensure that both players have joined
+      // TODO: ensure that ships have been placed
+
+      let activePlayer = null
+      let enemyPlayer = null
+      let enemyPlayerKey:PlayerKey|null = null
+
+      if (state.turn === "p1") {
+        activePlayer = state.p1
+        enemyPlayer = state.p2
+        enemyPlayerKey = "p2"
+      } else {
+        activePlayer = state.p2
+        enemyPlayer = state.p1
+        enemyPlayerKey = "p1"
+      }
+
+      const sentByActivePlayer = args.userId === activePlayer.id
+
+      if (!sentByActivePlayer) {
+        return
+      }
+
+      const attackedIndex = args.index
+      const attackedCellContainsShip = activePlayer.map.cells[attackedIndex] === cellTypes.ship
+
+      if (attackedCellContainsShip) {
+        io.emit("hit", { index: args.index })
+        state[enemyPlayerKey].map.cells[args.index] = cellTypes.damagedShip
+      } else {
+        io.emit("miss", { index: args.index })
+        state[enemyPlayerKey].map.cells[args.index] = cellTypes.miss
+        state.turn = state.turn === "p1" ? "p2" : "p1"
+      }
+
+      console.log(state)
+      console.log("p1 cells", state.p1.map.cells)
+      console.log("p2 cells", state.p2.map.cells)
     })
 
     socket.on('disconnect', () => {
