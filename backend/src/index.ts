@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { Socket, Server } from 'socket.io'
 const cors = require('cors')
 
-import { cellTypes } from "./shared"
+import { cellTypes, playerAliases } from "./shared"
 
 const app = express()
 app.use(cors({
@@ -33,7 +33,7 @@ type State = {
     id: string|null,
     map: Map,
   },
-  turn: "p1" | "p2",
+  turn: playerAliases,
   users: User[],
 }
 
@@ -197,7 +197,7 @@ const main = () => {
       id: null,
       map: generateOpponentMap(),
     },
-    turn: "p1",
+    turn: playerAliases.p1,
     users: [],
   }
 
@@ -213,28 +213,33 @@ const main = () => {
 
       let map = null
       let enemyMap = null
+      let playerAlias = null
 
-      if (userId === state.p1.id) {
+      const isPlayer1 = userId === state.p1.id
+
+      if (isPlayer1) {
         map = state.p1.map
         enemyMap = state.p2.map
+        playerAlias = playerAliases.p1
       } else {
         map = state.p2.map
         enemyMap = state.p1.map
+        playerAlias = playerAliases.p2
       }
 
       const data:{
         map: Map,
         enemyMap: Map,
+        playerAlias: playerAliases,
       } = {
         map,
         enemyMap: removeShips(enemyMap),
+        playerAlias,
       }
 
       broadcastMapsToSender(io, socket, data)
       console.log(state)
     })
-
-    type PlayerKey = "p1" | "p2"
 
     socket.on("fire", (args) => {
       // TODO: ensure that both players have joined
@@ -242,16 +247,16 @@ const main = () => {
 
       let activePlayer = null
       let enemyPlayer = null
-      let enemyPlayerKey:PlayerKey|null = null
+      let enemyPlayerKey:playerAliases|null = null
 
       if (state.turn === "p1") {
         activePlayer = state.p1
         enemyPlayer = state.p2
-        enemyPlayerKey = "p2"
+        enemyPlayerKey = playerAliases.p2
       } else {
         activePlayer = state.p2
         enemyPlayer = state.p1
-        enemyPlayerKey = "p1"
+        enemyPlayerKey = playerAliases.p1
       }
 
       const sentByActivePlayer = args.userId === activePlayer.id
@@ -261,15 +266,21 @@ const main = () => {
       }
 
       const attackedIndex = args.index
-      const attackedCellContainsShip = activePlayer.map.cells[attackedIndex] === cellTypes.ship
+      const attackedCellContainsShip = enemyPlayer.map.cells[attackedIndex] === cellTypes.ship
 
       if (attackedCellContainsShip) {
-        io.emit("hit", { index: args.index })
+        io.emit("hit", {
+          index: args.index,
+          playerAlias: enemyPlayerKey,
+        })
         state[enemyPlayerKey].map.cells[args.index] = cellTypes.damagedShip
       } else {
-        io.emit("miss", { index: args.index })
+        io.emit("miss", {
+          index: args.index,
+          playerAlias: enemyPlayerKey,
+        })
         state[enemyPlayerKey].map.cells[args.index] = cellTypes.miss
-        state.turn = state.turn === "p1" ? "p2" : "p1"
+        state.turn = state.turn === playerAliases.p1 ? playerAliases.p2 : playerAliases.p1
       }
 
       console.log(state)

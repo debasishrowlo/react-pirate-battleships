@@ -4,3 +4,8 @@ export const enum cellTypes {
   damagedShip = 2,
   miss = 3,
 }
+
+export enum playerAliases {
+  p1 = "p1",
+  p2 = "p2",
+}
