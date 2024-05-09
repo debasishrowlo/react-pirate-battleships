@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { Socket, Server } from 'socket.io'
 const cors = require('cors')
 
-import { cellTypes, playerAliases } from "./shared"
+import { cellTypes, eventTypes, playerAliases } from "./shared"
 
 const app = express()
 app.use(cors({
@@ -164,7 +164,7 @@ const broadcastMapsToSender = (
     enemyMap: Map,
   }
 ) => {
-  io.to(socket.id).emit("init", data)
+  io.to(socket.id).emit(eventTypes.join, data)
 }
 
 const joinGame = (state:State, userId:string) => {
@@ -187,8 +187,119 @@ const removeUserFromUsersList = (state:State, socket:Socket) => {
   ]
 }
 
-const main = () => {
-  const state:State = {
+const handleJoin = (
+  args: {
+    userId: string,
+    socket: Socket,
+  },
+  state: State,
+  socket: Socket,
+) => {
+  const userId = args.userId
+
+  addUserToUsersList(state, userId, socket.id)
+  
+  console.log(state, userId)
+  joinGame(state, userId)
+
+  let map = null
+  let enemyMap = null
+  let playerAlias = null
+
+  const isPlayer1 = userId === state.p1.id
+
+  if (isPlayer1) {
+    map = state.p1.map
+    enemyMap = state.p2.map
+    playerAlias = playerAliases.p1
+  } else {
+    map = state.p2.map
+    enemyMap = state.p1.map
+    playerAlias = playerAliases.p2
+  }
+
+  const data:{
+    map: Map,
+    enemyMap: Map,
+    playerAlias: playerAliases,
+  } = {
+    map,
+    enemyMap: removeShips(enemyMap),
+    playerAlias,
+  }
+
+  broadcastMapsToSender(io, socket, data)
+  console.log(state)
+}
+
+const handleFire = (
+  args: {
+    index: number,
+    userId: string,
+  },
+  state: State,
+) => {
+  let activePlayer = null
+  let enemyPlayer = null
+  let enemyPlayerKey:playerAliases|null = null
+
+  if (state.turn === playerAliases.p1) {
+    activePlayer = state.p1
+    enemyPlayer = state.p2
+    enemyPlayerKey = playerAliases.p2
+  } else {
+    activePlayer = state.p2
+    enemyPlayer = state.p1
+    enemyPlayerKey = playerAliases.p1
+  }
+
+  const sentByActivePlayer = args.userId === activePlayer.id
+
+  if (!sentByActivePlayer) {
+    return
+  }
+
+  const attackedIndex = args.index
+  const attackedCellContainsShip = enemyPlayer.map.cells[attackedIndex] === cellTypes.ship
+
+  if (attackedCellContainsShip) {
+    state[enemyPlayerKey].map.cells[args.index] = cellTypes.damagedShip
+
+    const payload:{
+      index: number,
+      playerAlias: playerAliases,
+      winner: playerAliases | null,
+    } = {
+      index: args.index,
+      playerAlias: enemyPlayerKey,
+      winner: null,
+    }
+
+    const enemyDefeated = state[enemyPlayerKey].map.cells.every(value => value !== 1)
+
+    if (enemyDefeated) {
+      payload.winner = state.turn
+    }
+
+    io.emit(eventTypes.hit, payload)
+  } else {
+    state[enemyPlayerKey].map.cells[args.index] = cellTypes.miss
+    state.turn = state.turn === playerAliases.p1 ? playerAliases.p2 : playerAliases.p1
+
+    io.emit(eventTypes.miss, {
+      index: args.index,
+      playerAlias: enemyPlayerKey,
+    })
+  }
+}
+
+const handleDisconnect = (state:State, socket:Socket) => {
+  console.log('user disconnected')
+  removeUserFromUsersList(state, socket)
+}
+
+const initState = ():State => {
+  return {
     p1: {
       id: null,
       map: generateMap(),
@@ -200,98 +311,17 @@ const main = () => {
     turn: playerAliases.p1,
     users: [],
   }
+}
 
-  io.on('connect', (socket: Socket) => {
+const main = () => {
+  const state:State = initState()
+
+  io.on(eventTypes.connect, (socket: Socket) => {
     console.log('a user connected')
 
-    socket.on("init", (args) => {
-      const userId = args.userId
-
-      addUserToUsersList(state, userId, socket.id)
-      
-      joinGame(state, userId)
-
-      let map = null
-      let enemyMap = null
-      let playerAlias = null
-
-      const isPlayer1 = userId === state.p1.id
-
-      if (isPlayer1) {
-        map = state.p1.map
-        enemyMap = state.p2.map
-        playerAlias = playerAliases.p1
-      } else {
-        map = state.p2.map
-        enemyMap = state.p1.map
-        playerAlias = playerAliases.p2
-      }
-
-      const data:{
-        map: Map,
-        enemyMap: Map,
-        playerAlias: playerAliases,
-      } = {
-        map,
-        enemyMap: removeShips(enemyMap),
-        playerAlias,
-      }
-
-      broadcastMapsToSender(io, socket, data)
-      console.log(state)
-    })
-
-    socket.on("fire", (args) => {
-      // TODO: ensure that both players have joined
-      // TODO: ensure that ships have been placed
-
-      let activePlayer = null
-      let enemyPlayer = null
-      let enemyPlayerKey:playerAliases|null = null
-
-      if (state.turn === "p1") {
-        activePlayer = state.p1
-        enemyPlayer = state.p2
-        enemyPlayerKey = playerAliases.p2
-      } else {
-        activePlayer = state.p2
-        enemyPlayer = state.p1
-        enemyPlayerKey = playerAliases.p1
-      }
-
-      const sentByActivePlayer = args.userId === activePlayer.id
-
-      if (!sentByActivePlayer) {
-        return
-      }
-
-      const attackedIndex = args.index
-      const attackedCellContainsShip = enemyPlayer.map.cells[attackedIndex] === cellTypes.ship
-
-      if (attackedCellContainsShip) {
-        io.emit("hit", {
-          index: args.index,
-          playerAlias: enemyPlayerKey,
-        })
-        state[enemyPlayerKey].map.cells[args.index] = cellTypes.damagedShip
-      } else {
-        io.emit("miss", {
-          index: args.index,
-          playerAlias: enemyPlayerKey,
-        })
-        state[enemyPlayerKey].map.cells[args.index] = cellTypes.miss
-        state.turn = state.turn === playerAliases.p1 ? playerAliases.p2 : playerAliases.p1
-      }
-
-      console.log(state)
-      console.log("p1 cells", state.p1.map.cells)
-      console.log("p2 cells", state.p2.map.cells)
-    })
-
-    socket.on('disconnect', () => {
-      console.log('user disconnected')
-      removeUserFromUsersList(state, socket)
-    })
+    socket.on(eventTypes.join, (args) => handleJoin(args, state, socket))
+    socket.on(eventTypes.fire, (args) => handleFire(args, state))
+    socket.on(eventTypes.disconnect, () => handleDisconnect(state, socket))
   })
 }
 

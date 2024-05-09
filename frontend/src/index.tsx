@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { v4 as uuidv4 } from 'uuid'
 
-import { cellTypes, playerAliases } from 'backend/src/shared'
+import { cellTypes, eventTypes, playerAliases } from 'backend/src/shared'
 
 import "./index.css"
 
@@ -32,7 +32,7 @@ const Map = ({
   userId: string,
 }) => {
   const handleClick = (index:number) => {
-    socket.emit("fire", {
+    socket.emit(eventTypes.fire, {
       userId,
       index,
     })
@@ -79,10 +79,16 @@ const App = () => {
   const [enemyMap, setEnemyMap] = useState<Map|null>(null)
   const [userId, setUserId] = useState(null)
   const [playerAlias, setPlayerAlias] = useState<playerAliases|null>(null)
-  console.log({ map, enemyMap, playerAlias })
 
-  const handleHit = (args: { index: number, playerAlias: playerAliases }) => {
+  const handleHit = (
+    args: {
+      index: number, 
+      playerAlias: playerAliases,
+      winner: playerAliases | null,
+    }
+  ) => {
     console.log("attack successful", args)
+
     if (args.playerAlias === playerAlias) {
       setMap({
         ...map,
@@ -93,7 +99,6 @@ const App = () => {
         ],
       })
     } else {
-      console.log({ enemyMap })
       setEnemyMap({
         ...enemyMap,
         cells: [
@@ -103,12 +108,13 @@ const App = () => {
         ],
       })
     }
+
+    if (args.winner) {
+      console.log(`${args.winner} is the winner`)
+    }
   }
 
   const handleMiss = (args: { index: number, playerAlias: playerAliases }) => {
-    console.log(map, enemyMap, playerAlias)
-    console.log("attack missed", args)
-
     if (args.playerAlias === playerAlias) {
       setMap({
         ...map,
@@ -143,10 +149,10 @@ const App = () => {
     }
     
     setUserId(userId)
-    socket.emit("init", { userId })
+    socket.emit(eventTypes.join, { userId })
   }
 
-  const handleInit = (data: {
+  const handleJoin = (data: {
     map: Map,
     enemyMap: Map,
     playerAlias: playerAliases,
@@ -159,28 +165,26 @@ const App = () => {
   useEffect(() => {
     socket.connect()
 
-    socket.on('connect', handleConnect)
-    socket.on('init', handleInit)
-    socket.on('disconnect', () => { console.log("disconnected") })
-    socket.on('fire', () => { console.log("on: under attack") })
+    socket.on(eventTypes.connect, handleConnect)
+    socket.on(eventTypes.join, handleJoin)
+    socket.on(eventTypes.disconnect, () => { console.log("disconnected") })
 
     return () => {
       socket.disconnect()
 
-      socket.off('connect', handleConnect)
-      socket.off('init', handleInit)
-      socket.off('disconnect', () => { console.log("disconnected") })
-      socket.off('fire', () => { console.log("off: under attack") })
+      socket.off(eventTypes.connect, handleConnect)
+      socket.off(eventTypes.join, handleJoin)
+      socket.off(eventTypes.disconnect, () => { console.log("disconnected") })
     }
   }, [])
 
   useEffect(() => {
-    socket.on('hit', handleHit)
-    socket.on('miss', handleMiss)
+    socket.on(eventTypes.hit, handleHit)
+    socket.on(eventTypes.miss, handleMiss)
 
     return () => {
-      socket.off('hit', handleHit)
-      socket.off('miss', handleMiss)
+      socket.off(eventTypes.hit, handleHit)
+      socket.off(eventTypes.miss, handleMiss)
     }
   }, [map, enemyMap, playerAlias])
 
