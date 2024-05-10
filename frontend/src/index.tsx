@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { v4 as uuidv4 } from 'uuid'
+import classnames from 'classnames'
 
 import { cellTypes, eventTypes, playerAliases } from 'backend/src/shared'
 
@@ -26,10 +27,12 @@ const Map = ({
   map,
   isDisabled,
   userId,
+  canBeAttacked,
 } : {
   map: Map,
   isDisabled: boolean,
   userId: string,
+  canBeAttacked: boolean,
 }) => {
   const handleClick = (index:number) => {
     socket.emit(eventTypes.fire, {
@@ -39,11 +42,16 @@ const Map = ({
   }
 
   return (
-    <div className="flex flex-wrap aspect-square">
+    <div
+      className={classnames("flex flex-wrap aspect-square border-4 transition duration-500", {
+        "border-transparent opacity-70": !canBeAttacked,
+        "border-blue-500": canBeAttacked,
+      })}
+    >
       {map.cells.map((value, index) => {
         let bgClasses = "bg-transparent"
 
-        if (!isDisabled) {
+        if (canBeAttacked && !isDisabled) {
           bgClasses += " hover:bg-gray-200"
         }
 
@@ -79,14 +87,13 @@ const App = () => {
   const [enemyMap, setEnemyMap] = useState<Map|null>(null)
   const [userId, setUserId] = useState(null)
   const [playerAlias, setPlayerAlias] = useState<playerAliases|null>(null)
+  const [activePlayer, setActivePlayer] = useState<playerAliases|null>(null)
 
-  const handleHit = (
-    args: {
-      index: number, 
-      playerAlias: playerAliases,
-      winner: playerAliases | null,
-    }
-  ) => {
+  const handleHit = (args: {
+    index: number, 
+    playerAlias: playerAliases,
+    winner: playerAliases | null,
+  }) => {
     console.log("attack successful", args)
 
     if (args.playerAlias === playerAlias) {
@@ -134,6 +141,7 @@ const App = () => {
         ],
       })
     }
+    setActivePlayer(activePlayer === playerAliases.p1 ? playerAliases.p2 : playerAliases.p1)
   }
 
   const handleConnect = () => {
@@ -156,10 +164,12 @@ const App = () => {
     map: Map,
     enemyMap: Map,
     playerAlias: playerAliases,
+    activePlayer: playerAliases,
   }) => {
     setMap(data.map)
     setEnemyMap(data.enemyMap)
     setPlayerAlias(data.playerAlias)
+    setActivePlayer(data.activePlayer)
   }
 
   useEffect(() => {
@@ -193,12 +203,13 @@ const App = () => {
   }
 
   return (
-    <div className="py-6 flex">
+    <div className="mx-auto max-w-5xl py-6 flex">
       <div className="px-3 w-1/2">
         <Map 
           map={map} 
           isDisabled={true}
           userId={userId}
+          canBeAttacked={playerAlias !== activePlayer}
         />
       </div>
       <div className="px-3 w-1/2">
@@ -206,6 +217,7 @@ const App = () => {
           map={enemyMap} 
           isDisabled={false}
           userId={userId}
+          canBeAttacked={playerAlias === activePlayer}
         />
       </div>
     </div>

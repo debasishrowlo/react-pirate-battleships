@@ -116,10 +116,6 @@ const generateMap = ():Map => {
     }
   }
 
-  // TODO: temp code
-  map.cells[6] = 3
-  map.cells[20] = 2
-
   return map
 }
 
@@ -136,10 +132,6 @@ const generateOpponentMap = ():Map => {
   map.cells[2] = cellTypes.ship
   map.cells[3] = cellTypes.ship
   map.cells[4] = cellTypes.ship
-
-  map.cells[5] = cellTypes.miss
-  map.cells[6] = cellTypes.miss
-  map.cells[7] = cellTypes.miss
 
   return map
 }
@@ -199,7 +191,6 @@ const handleJoin = (
 
   addUserToUsersList(state, userId, socket.id)
   
-  console.log(state, userId)
   joinGame(state, userId)
 
   let map = null
@@ -218,17 +209,19 @@ const handleJoin = (
     playerAlias = playerAliases.p2
   }
 
-  const data:{
+  const payload:{
     map: Map,
     enemyMap: Map,
     playerAlias: playerAliases,
+    activePlayer: playerAliases,
   } = {
     map,
     enemyMap: removeShips(enemyMap),
     playerAlias,
+    activePlayer: state.turn,
   }
 
-  broadcastMapsToSender(io, socket, data)
+  broadcastMapsToSender(io, socket, payload)
   console.log(state)
 }
 
@@ -284,7 +277,7 @@ const handleFire = (
     io.emit(eventTypes.hit, payload)
   } else {
     state[enemyPlayerKey].map.cells[args.index] = cellTypes.miss
-    state.turn = state.turn === playerAliases.p1 ? playerAliases.p2 : playerAliases.p1
+    state.turn = enemyPlayerKey
 
     io.emit(eventTypes.miss, {
       index: args.index,
