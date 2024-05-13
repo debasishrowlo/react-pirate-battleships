@@ -2,12 +2,11 @@ import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { v4 as uuidv4 } from 'uuid'
 import classnames from 'classnames'
+import { io } from 'socket.io-client'
 
-import { cellTypes, eventTypes, playerAliases } from 'backend/src/shared'
+import { cellTypes, eventTypes, orientations, playerAliases } from 'backend/src/shared'
 
 import "./index.css"
-
-import { io } from 'socket.io-client'
 
 const URL = process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:4000'
 
@@ -82,7 +81,160 @@ const Map = ({
   )
 }
 
+enum gameModes {
+  shipPlacement = "shipPlacement",
+  playing = "playing",
+}
+
+const ShipPlacement = ({
+  map,
+} : {
+  map:Map,
+}) => {
+  const [orientation, setOrientation] = useState<orientations>(orientations.horizontal)
+  const ships = [
+    {
+      width: 5,
+      height: 1,
+      [orientations.horizontal]: {
+        x: 0,
+        y: 3,
+      },
+      [orientations.vertical]: {
+        x: 2,
+        y: 0,
+      },
+    },
+    {
+      width: 4,
+      height: 1,
+      [orientations.horizontal]: {
+        x: 6,
+        y: 3,
+      },
+      [orientations.vertical]: {
+        x: 6,
+        y: 0,
+      },
+    },
+    {
+      width: 3,
+      height: 1,
+      [orientations.horizontal]: {
+        x: 0,
+        y: 5,
+      },
+      [orientations.vertical]: {
+        x: 0,
+        y: 5,
+      },
+    },
+    {
+      width: 3,
+      height: 1,
+      [orientations.horizontal]: {
+        x: 4,
+        y: 5,
+      },
+      [orientations.vertical]: {
+        x: 4,
+        y: 5,
+      },
+    },
+    {
+      width: 2,
+      height: 1,
+      [orientations.horizontal]: {
+        x: 8,
+        y: 5,
+      },
+      [orientations.vertical]: {
+        x: 8,
+        y: 5,
+      },
+    },
+  ]
+
+  const handleRotateClick = () => {
+    setOrientation(
+      orientation === orientations.horizontal 
+        ? orientations.vertical 
+        : orientations.horizontal
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl py-6 flex">
+      <div className="px-3 w-1/2">
+        <div className="flex flex-wrap aspect-square">
+          {map.cells.map((value, index) => {
+            return (
+              <div
+                key={index}
+                className={`border border-gray-500 aspect-square`}
+                style={{
+                  width: `${100 / map.size}%`,
+                  fontSize: "12px",
+                }}
+              ></div>
+            )
+          })}
+        </div>
+      </div>
+      <div className="px-3 w-1/2">
+        <div className="flex flex-wrap aspect-square relative">
+          {ships.map((ship, index) => {
+            const cellSize = 100 / 10
+
+            const x = orientation === orientations.horizontal ? ship.horizontal.x : ship.vertical.x
+            const y = orientation === orientations.horizontal ? ship.horizontal.y : ship.vertical.y
+
+            const transform = orientation === orientations.vertical
+              ? `translateY(-100%) rotate(90deg)`
+              : "none"
+
+            return (
+              <div
+                className="absolute bg-blue-400 origin-bottom-left"
+                style={{
+                  width: `${cellSize * ship.width}%`,
+                  height: `${cellSize * ship.height}%`,
+                  top: `${cellSize * y}%`,
+                  left: `${cellSize * x}%`,
+                  transform,
+                }}
+                key={index}
+              ></div>
+            )
+          })}
+          {map.cells.map((value, index) => {
+            return (
+              <div
+                key={index}
+                className={`border border-gray-500 aspect-square`}
+                style={{
+                  width: `${100 / map.size}%`,
+                  fontSize: "12px",
+                }}
+              ></div>
+            )
+          })}
+          <button 
+            type="button"
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-400 text-24 font-bold rounded-6"
+            onClick={handleRotateClick}
+          >
+            Rotate
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const App = () => {
+  const [gameMode, setGameMode] = useState<gameModes>(gameModes.shipPlacement)
+
   const [map, setMap] = useState<Map|null>(null)
   const [enemyMap, setEnemyMap] = useState<Map|null>(null)
   const [userId, setUserId] = useState(null)
@@ -202,6 +354,14 @@ const App = () => {
     return null
   }
 
+  if (gameMode === gameModes.shipPlacement) {
+    return (
+      <ShipPlacement
+        map={map}
+      />
+    )
+  }
+
   return (
     <div className="mx-auto max-w-5xl py-6 flex">
       <div className="px-3 w-1/2">
@@ -213,7 +373,7 @@ const App = () => {
         />
       </div>
       <div className="px-3 w-1/2">
-        <Map 
+        <Map
           map={enemyMap} 
           isDisabled={false}
           userId={userId}

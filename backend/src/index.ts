@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { Socket, Server } from 'socket.io'
 const cors = require('cors')
 
-import { cellTypes, eventTypes, playerAliases } from "./shared"
+import { cellTypes, eventTypes, orientations, playerAliases } from "./shared"
 
 const app = express()
 app.use(cors({
@@ -62,11 +62,6 @@ const generateMap = ():Map => {
   const map = {
     size: 10,
     cells: Array(cellCount).fill(0)
-  }
-
-  const orientations = {
-    horizontal: "horizontal",
-    vertical: "vertical",
   }
 
   const ships = [
@@ -222,7 +217,6 @@ const handleJoin = (
   }
 
   broadcastMapsToSender(io, socket, payload)
-  console.log(state)
 }
 
 const handleFire = (
@@ -287,7 +281,6 @@ const handleFire = (
 }
 
 const handleDisconnect = (state:State, socket:Socket) => {
-  console.log('user disconnected')
   removeUserFromUsersList(state, socket)
 }
 
@@ -310,8 +303,6 @@ const main = () => {
   const state:State = initState()
 
   io.on(eventTypes.connect, (socket: Socket) => {
-    console.log('a user connected')
-
     socket.on(eventTypes.join, (args) => handleJoin(args, state, socket))
     socket.on(eventTypes.fire, (args) => handleFire(args, state))
     socket.on(eventTypes.disconnect, () => handleDisconnect(state, socket))

@@ -5,16 +5,21 @@ export const enum cellTypes {
   miss = 3,
 }
 
-export enum playerAliases {
+export const enum playerAliases {
   p1 = "p1",
   p2 = "p2",
 }
 
-export enum eventTypes {
+export const enum eventTypes {
   connect = 'connect',
   join = 'join',
   fire = 'fire',
   disconnect = 'disconnect',
   hit = 'hit',
   miss = 'miss',
+}
+
+export const enum orientations {
+  horizontal = "horizontal",
+  vertical = "vertical",
 }
