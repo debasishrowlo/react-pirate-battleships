@@ -86,16 +86,21 @@ enum gameModes {
   playing = "playing",
 }
 
+const getPositionFromIndex = (index:number, cellsPerRow:number) => {
+  const x = index % cellsPerRow
+  const y = Math.floor(index / cellsPerRow)
+
+  return { x, y }
+}
+
 const ShipPlacement = ({
   map,
 } : {
   map:Map,
 }) => {
-  const [orientation, setOrientation] = useState<orientations>(orientations.horizontal)
   const ships = [
     {
       width: 5,
-      height: 1,
       [orientations.horizontal]: {
         x: 0,
         y: 3,
@@ -107,7 +112,6 @@ const ShipPlacement = ({
     },
     {
       width: 4,
-      height: 1,
       [orientations.horizontal]: {
         x: 6,
         y: 3,
@@ -119,7 +123,6 @@ const ShipPlacement = ({
     },
     {
       width: 3,
-      height: 1,
       [orientations.horizontal]: {
         x: 0,
         y: 5,
@@ -131,7 +134,6 @@ const ShipPlacement = ({
     },
     {
       width: 3,
-      height: 1,
       [orientations.horizontal]: {
         x: 4,
         y: 5,
@@ -143,7 +145,6 @@ const ShipPlacement = ({
     },
     {
       width: 2,
-      height: 1,
       [orientations.horizontal]: {
         x: 8,
         y: 5,
@@ -155,6 +156,38 @@ const ShipPlacement = ({
     },
   ]
 
+  type PlacedShip = {
+    cellIndex: number,
+    shipIndex: number,
+    orientation: orientations,
+  }
+
+  const [orientation, setOrientation] = useState<orientations>(orientations.horizontal)
+  const [pickedIndex, setPickedIndex] = useState<number|null>(null)
+  const [hoveredIndex, setHoveredIndex] = useState<number|null>(null)
+  const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
+  console.log({ placedShips })
+
+  let shipPreview = null
+
+  if (pickedIndex !== null && hoveredIndex !== null) {
+    const cellSize = 100 / map.size
+    const ship = ships[pickedIndex]
+
+    const { x, y } = getPositionFromIndex(hoveredIndex, map.size)
+    const transform = orientation === orientations.vertical
+      ? `translateY(-100%) rotate(90deg)`
+      : "none"
+
+    shipPreview = {
+      width: `${cellSize * ship.width}%`,
+      height: `${cellSize}%`,
+      top: `${cellSize * y}%`,
+      left: `${cellSize * x}%`,
+      transform,
+    }
+  }
+
   const handleRotateClick = () => {
     setOrientation(
       orientation === orientations.horizontal 
@@ -163,19 +196,79 @@ const ShipPlacement = ({
     )
   }
 
+  const isShipPlaced = (index:number) => {
+    return placedShips.some(placedShip => placedShip.shipIndex === index)
+  }
+
+  const handleShipClick = (index:number) => {
+    if (!isShipPlaced(index)) {
+      setPickedIndex(index)
+    }
+  }
+
+  const handleMouseOver = (index:number) => {
+    setHoveredIndex(index)
+  }
+
+  const handleClick = (index:number) => {
+    if (hoveredIndex !== null && pickedIndex !== null) {
+      setPlacedShips([
+        ...placedShips,
+        {
+          cellIndex: hoveredIndex,
+          shipIndex: pickedIndex,
+          orientation,
+        },
+      ])
+      setPickedIndex(null)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl py-6 flex">
       <div className="px-3 w-1/2">
-        <div className="flex flex-wrap aspect-square">
+        <div className="flex flex-wrap aspect-square relative overflow-hidden">
+          {shipPreview && (
+            <div
+              className="absolute origin-bottom-left bg-blue-400 transition-all pointer-events-none"
+              style={{ ...shipPreview }}
+            ></div>
+          )}
+          {placedShips.map((placedShip, index) => {
+            const ship = ships[placedShip.shipIndex]
+            const cellSize = 100 / map.size
+
+            const { x, y } = getPositionFromIndex(placedShip.cellIndex, map.size)
+            const transform = placedShip.orientation === orientations.vertical
+              ? `translateY(-100%) rotate(90deg)`
+              : "none"
+
+            return (
+              <div
+                className="absolute origin-bottom-left bg-blue-400"
+                style={{
+                  width: `${cellSize * ship.width}%`,
+                  height: `${cellSize}%`,
+                  top: `${cellSize * y}%`,
+                  left: `${cellSize * x}%`,
+                  transform,
+                }}
+                key={index}
+                onClick={() => handleShipClick(index)}
+              ></div>
+            )
+          })}
           {map.cells.map((value, index) => {
             return (
               <div
                 key={index}
-                className={`border border-gray-500 aspect-square`}
+                className="border border-gray-500 aspect-square"
                 style={{
                   width: `${100 / map.size}%`,
                   fontSize: "12px",
                 }}
+                onMouseOver={() => handleMouseOver(index)}
+                onClick={() => handleClick(index)}
               ></div>
             )
           })}
@@ -184,7 +277,7 @@ const ShipPlacement = ({
       <div className="px-3 w-1/2">
         <div className="flex flex-wrap aspect-square relative">
           {ships.map((ship, index) => {
-            const cellSize = 100 / 10
+            const cellSize = 100 / map.size
 
             const x = orientation === orientations.horizontal ? ship.horizontal.x : ship.vertical.x
             const y = orientation === orientations.horizontal ? ship.horizontal.y : ship.vertical.y
@@ -193,17 +286,24 @@ const ShipPlacement = ({
               ? `translateY(-100%) rotate(90deg)`
               : "none"
 
+            const isPicked = pickedIndex === index
+
             return (
               <div
-                className="absolute bg-blue-400 origin-bottom-left"
+                className={classnames("absolute origin-bottom-left border-4 border-dashed", {
+                  "border-transparent bg-blue-400": !isPicked,
+                  "border-blue-500 bg-blue-200": isPicked,
+                  "opacity-50": isShipPlaced(index),
+                })}
                 style={{
                   width: `${cellSize * ship.width}%`,
-                  height: `${cellSize * ship.height}%`,
+                  height: `${cellSize}%`,
                   top: `${cellSize * y}%`,
                   left: `${cellSize * x}%`,
                   transform,
                 }}
                 key={index}
+                onClick={() => handleShipClick(index)}
               ></div>
             )
           })}
