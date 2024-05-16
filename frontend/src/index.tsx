@@ -86,13 +86,6 @@ enum gameModes {
   playing = "playing",
 }
 
-const getPositionFromIndex = (index:number, cellsPerRow:number) => {
-  const x = index % cellsPerRow
-  const y = Math.floor(index / cellsPerRow)
-
-  return { x, y }
-}
-
 const ShipPlacement = ({
   map,
 } : {
@@ -166,7 +159,13 @@ const ShipPlacement = ({
   const [pickedIndex, setPickedIndex] = useState<number|null>(null)
   const [hoveredIndex, setHoveredIndex] = useState<number|null>(null)
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
-  console.log({ placedShips })
+
+  const getPositionFromIndex = (index:number, cellsPerRow:number) => {
+    const x = index % cellsPerRow
+    const y = Math.floor(index / cellsPerRow)
+
+    return { x, y }
+  }
 
   let shipPreview = null
 
@@ -198,6 +197,14 @@ const ShipPlacement = ({
 
   const isShipPlaced = (index:number) => {
     return placedShips.some(placedShip => placedShip.shipIndex === index)
+  }
+
+  const handlePlacedShipClick = (index:number) => {
+    setPickedIndex(placedShips[index].shipIndex)
+    setPlacedShips([
+      ...placedShips.slice(0, index),
+      ...placedShips.slice(index + 1),
+    ])
   }
 
   const handleShipClick = (index:number) => {
@@ -254,7 +261,7 @@ const ShipPlacement = ({
                   transform,
                 }}
                 key={index}
-                onClick={() => handleShipClick(index)}
+                onClick={() => handlePlacedShipClick(index)}
               ></div>
             )
           })}
