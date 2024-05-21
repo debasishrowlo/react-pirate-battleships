@@ -86,6 +86,10 @@ enum gameModes {
   playing = "playing",
 }
 
+const v2 = (x = 0, y = 0) => {
+  return { x, y }
+}
+
 const ShipPlacement = ({
   map,
 } : {
@@ -158,7 +162,18 @@ const ShipPlacement = ({
   const [orientation, setOrientation] = useState<orientations>(orientations.horizontal)
   const [pickedIndex, setPickedIndex] = useState<number|null>(null)
   const [hoveredIndex, setHoveredIndex] = useState<number|null>(null)
-  const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
+  const [placedShips, setPlacedShips] = useState<PlacedShip[]>([
+    {
+      // cellIndex: 44,
+      // shipIndex: 0,
+      // orientation: orientations.horizontal,
+
+      cellIndex: 44,
+      shipIndex: 0,
+      orientation: orientations.vertical,
+    }
+  ])
+  const [isPlacementValid, setIsPlacementValid] = useState(true)
 
   const getPositionFromIndex = (index:number, cellsPerRow:number) => {
     const x = index % cellsPerRow
@@ -200,6 +215,8 @@ const ShipPlacement = ({
   }
 
   const handlePlacedShipClick = (index:number) => {
+    // TODO: error occurs when picking a different ship when one of the ships is picked
+
     setPickedIndex(placedShips[index].shipIndex)
     setPlacedShips([
       ...placedShips.slice(0, index),
@@ -214,11 +231,176 @@ const ShipPlacement = ({
   }
 
   const handleMouseOver = (index:number) => {
+    if (pickedIndex === null) {
+      return
+    }
+
+    const pickedShip = ships[pickedIndex]
+    const hoveredCell = getPositionFromIndex(index, map.size)
+
+    let isValid = true
+
+    if (orientation === orientations.horizontal) {
+      const cellsToRight = map.size - hoveredCell.x
+
+      if (cellsToRight < pickedShip.width) {
+        isValid = false
+      }
+    } 
+    
+    if (
+      isValid && 
+      orientation === orientations.vertical
+    ) {
+      const cellsToBottom = map.size - hoveredCell.y
+
+      if (cellsToBottom < pickedShip.width) {
+        isValid = false
+      }
+    }
+
+    if (isValid) {
+      for (let i = 0; i < placedShips.length; i++) {
+        const placedShip = placedShips[i]
+
+        if (placedShip.orientation === orientation) {
+          if (orientation === orientations.horizontal) {
+            // TODO: implement get ship line
+            const ship1 = {
+              x1: hoveredCell.x,
+              y1: hoveredCell.y,
+              x2: hoveredCell.x + pickedShip.width - 1,
+              y2: hoveredCell.y,
+            }
+            const position = getPositionFromIndex(placedShip.cellIndex, map.size)
+            // TODO: implement get ship line
+            const ship2 = {
+              x1: position.x,
+              y1: position.y,
+              x2: position.x + ships[placedShip.shipIndex].width - 1,
+              y2: position.y,
+            }
+
+            if (ship1.y1 === ship2.y1) {
+              if (
+                (
+                  ship2.x1 >= ship1.x1 &&
+                  ship2.x1 <= ship1.x2
+                ) || (
+                  ship2.x2 >= ship1.x1 &&
+                  ship2.x2 <= ship1.x2
+                ) 
+              ) {
+                isValid = false
+                break
+              }
+            }
+          } else {
+            // TODO: implement get ship line
+            const ship1 = {
+              x1: hoveredCell.x,
+              y1: hoveredCell.y,
+              x2: hoveredCell.x,
+              y2: hoveredCell.y + pickedShip.width - 1,
+            }
+            const position = getPositionFromIndex(placedShip.cellIndex, map.size)
+            // TODO: implement get ship line
+            const ship2 = {
+              x1: position.x,
+              y1: position.y,
+              x2: position.x,
+              y2: position.y + ships[placedShip.shipIndex].width - 1,
+            }
+
+            if (ship1.x1 === ship2.x1) {
+              if (
+                (
+                  ship2.y1 >= ship1.y1 &&
+                  ship2.y1 <= ship1.y2
+                ) || (
+                  ship2.y2 >= ship1.y1 &&
+                  ship2.y2 <= ship1.y2
+                )
+              ) {
+                isValid = false
+                break
+              }
+            }
+          }
+        } else {
+          let horizontalShipCellIndex = null
+          let horizontalShipWidth = null
+
+          let verticalShipX = null
+          let verticalShipY = null
+          let verticalShipWidth = null
+
+          if (
+            placedShip.orientation === orientations.horizontal &&
+            orientation === orientations.vertical
+          ) {
+            horizontalShipCellIndex = placedShip.cellIndex
+            horizontalShipWidth = ships[placedShip.shipIndex].width
+
+            verticalShipX = hoveredCell.x
+            verticalShipY = hoveredCell.y
+            verticalShipWidth = pickedShip.width
+          } else {
+            horizontalShipCellIndex = index
+            horizontalShipWidth = pickedShip.width
+
+            const shipPosition = getPositionFromIndex(placedShip.cellIndex, map.size)
+            verticalShipX = shipPosition.x
+            verticalShipY = shipPosition.y
+            verticalShipWidth = ships[placedShip.shipIndex].width
+          }
+
+          // TODO: implement get ship line
+          const horizontalLine = {
+            p1: v2(),
+            p2: v2(),
+          }
+
+          horizontalLine.p1 = getPositionFromIndex(horizontalShipCellIndex, map.size),
+          horizontalLine.p2.x = horizontalLine.p1.x + (horizontalShipWidth - 1),
+          horizontalLine.p2.y = horizontalLine.p1.y
+
+          // TODO: implement get ship line
+          const verticalLine = {
+            p1: v2(),
+            p2: v2(),
+          }
+
+          verticalLine.p1 = {
+            x: verticalShipX,
+            y: verticalShipY,
+          }
+          verticalLine.p2.x = verticalLine.p1.x
+          verticalLine.p2.y = verticalLine.p1.y + (verticalShipWidth - 1)
+
+          if (
+            verticalLine.p1.x >= horizontalLine.p1.x && 
+            verticalLine.p1.x <= horizontalLine.p2.x &&
+            horizontalLine.p1.y >= verticalLine.p1.y && 
+            horizontalLine.p1.y <= verticalLine.p2.y
+          ) {
+            isValid = false
+            break
+          } 
+        }
+      }
+    }
+
+    setIsPlacementValid(isValid)
     setHoveredIndex(index)
   }
 
   const handleClick = (index:number) => {
-    if (hoveredIndex !== null && pickedIndex !== null) {
+    if (
+      hoveredIndex !== null && 
+      pickedIndex !== null &&
+      isPlacementValid
+    ) {
       setPlacedShips([
         ...placedShips,
         {
@@ -237,7 +419,10 @@ const ShipPlacement = ({
         <div className="flex flex-wrap aspect-square relative overflow-hidden">
           {shipPreview && (
             <div
-              className="absolute origin-bottom-left bg-blue-400 transition-all pointer-events-none"
+              className={classnames("absolute origin-bottom-left transition-all pointer-events-none", {
+                "bg-blue-400": isPlacementValid,
+                "bg-red-400": !isPlacementValid,
+              })}
               style={{ ...shipPreview }}
             ></div>
           )}
@@ -266,6 +451,7 @@ const ShipPlacement = ({
             )
           })}
           {map.cells.map((value, index) => {
+            const position = getPositionFromIndex(index, map.size)
             return (
               <div
                 key={index}
@@ -276,7 +462,7 @@ const ShipPlacement = ({
                 }}
                 onMouseOver={() => handleMouseOver(index)}
                 onClick={() => handleClick(index)}
-              ></div>
+              >{position.x},{position.y}</div>
             )
           })}
         </div>
