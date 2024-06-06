@@ -2,9 +2,17 @@ import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { v4 as uuidv4 } from 'uuid'
 import classnames from 'classnames'
+import { Dialog, DialogPanel } from '@headlessui/react'
 import { io } from 'socket.io-client'
 
-import { cellTypes, eventTypes, orientations, playerAliases } from 'backend/src/shared'
+import {
+  JoinEventPayload,
+  cellTypes, 
+  eventTypes, 
+  orientations, 
+  playerAliases,
+} from 'backend/src/shared/types'
+import { getPositionFromIndex } from 'backend/src/shared/utils'
 
 import "./index.css"
 
@@ -83,7 +91,8 @@ const Map = ({
 
 enum gameModes {
   shipPlacement = "shipPlacement",
-  playing = "playing",
+  waitingForPlayer = "waitingForPlayer",
+  battle = "battle",
 }
 
 const v2 = (x = 0, y = 0) => {
@@ -92,12 +101,16 @@ const v2 = (x = 0, y = 0) => {
 
 const ShipPlacement = ({
   map,
+  userId,
+  gameMode,
 } : {
   map:Map,
+  userId: string,
+  gameMode: gameModes,
 }) => {
   const ships = [
     {
-      width: 5,
+      length: 5,
       [orientations.horizontal]: {
         x: 0,
         y: 3,
@@ -108,7 +121,7 @@ const ShipPlacement = ({
       },
     },
     {
-      width: 4,
+      length: 4,
       [orientations.horizontal]: {
         x: 6,
         y: 3,
@@ -119,7 +132,7 @@ const ShipPlacement = ({
       },
     },
     {
-      width: 3,
+      length: 3,
       [orientations.horizontal]: {
         x: 0,
         y: 5,
@@ -130,7 +143,7 @@ const ShipPlacement = ({
       },
     },
     {
-      width: 3,
+      length: 3,
       [orientations.horizontal]: {
         x: 4,
         y: 5,
@@ -141,7 +154,7 @@ const ShipPlacement = ({
       },
     },
     {
-      width: 2,
+      length: 2,
       [orientations.horizontal]: {
         x: 8,
         y: 5,
@@ -162,25 +175,40 @@ const ShipPlacement = ({
   const [orientation, setOrientation] = useState<orientations>(orientations.horizontal)
   const [pickedIndex, setPickedIndex] = useState<number|null>(null)
   const [hoveredIndex, setHoveredIndex] = useState<number|null>(null)
+  // const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([
     {
-      // cellIndex: 44,
-      // shipIndex: 0,
-      // orientation: orientations.horizontal,
-
-      cellIndex: 44,
-      shipIndex: 0,
-      orientation: orientations.vertical,
-    }
+      "cellIndex": 5,
+      "shipIndex": 0,
+      "orientation": orientations.horizontal,
+    },
+    {
+      "cellIndex": 16,
+      "shipIndex": 1,
+      "orientation": orientations.horizontal,
+    },
+    {
+      "cellIndex": 27,
+      "shipIndex": 2,
+      "orientation": orientations.horizontal,
+    },
+    {
+      "cellIndex": 37,
+      "shipIndex": 3,
+      "orientation": orientations.horizontal,
+    },
+    {
+      "cellIndex": 48,
+      "shipIndex": 4,
+      "orientation": orientations.horizontal,
+    },
   ])
   const [isPlacementValid, setIsPlacementValid] = useState(true)
 
-  const getPositionFromIndex = (index:number, cellsPerRow:number) => {
-    const x = index % cellsPerRow
-    const y = Math.floor(index / cellsPerRow)
-
-    return { x, y }
-  }
+  const isPlacementComplete = (
+    isPlacementValid &&
+    placedShips.length === ships.length
+  )
 
   let shipPreview = null
 
@@ -194,7 +222,7 @@ const ShipPlacement = ({
       : "none"
 
     shipPreview = {
-      width: `${cellSize * ship.width}%`,
+      width: `${cellSize * ship.length}%`,
       height: `${cellSize}%`,
       top: `${cellSize * y}%`,
       left: `${cellSize * x}%`,
@@ -243,7 +271,7 @@ const ShipPlacement = ({
     if (orientation === orientations.horizontal) {
       const cellsToRight = map.size - hoveredCell.x
 
-      if (cellsToRight < pickedShip.width) {
+      if (cellsToRight < pickedShip.length) {
         isValid = false
       }
     } 
@@ -254,7 +282,7 @@ const ShipPlacement = ({
     ) {
       const cellsToBottom = map.size - hoveredCell.y
 
-      if (cellsToBottom < pickedShip.width) {
+      if (cellsToBottom < pickedShip.length) {
         isValid = false
       }
     }
@@ -269,7 +297,7 @@ const ShipPlacement = ({
             const ship1 = {
               x1: hoveredCell.x,
               y1: hoveredCell.y,
-              x2: hoveredCell.x + pickedShip.width - 1,
+              x2: hoveredCell.x + pickedShip.length - 1,
               y2: hoveredCell.y,
             }
             const position = getPositionFromIndex(placedShip.cellIndex, map.size)
@@ -277,7 +305,7 @@ const ShipPlacement = ({
             const ship2 = {
               x1: position.x,
               y1: position.y,
-              x2: position.x + ships[placedShip.shipIndex].width - 1,
+              x2: position.x + ships[placedShip.shipIndex].length - 1,
               y2: position.y,
             }
 
@@ -301,7 +329,7 @@ const ShipPlacement = ({
               x1: hoveredCell.x,
               y1: hoveredCell.y,
               x2: hoveredCell.x,
-              y2: hoveredCell.y + pickedShip.width - 1,
+              y2: hoveredCell.y + pickedShip.length - 1,
             }
             const position = getPositionFromIndex(placedShip.cellIndex, map.size)
             // TODO: implement get ship line
@@ -309,7 +337,7 @@ const ShipPlacement = ({
               x1: position.x,
               y1: position.y,
               x2: position.x,
-              y2: position.y + ships[placedShip.shipIndex].width - 1,
+              y2: position.y + ships[placedShip.shipIndex].length - 1,
             }
 
             if (ship1.x1 === ship2.x1) {
@@ -340,19 +368,19 @@ const ShipPlacement = ({
             orientation === orientations.vertical
           ) {
             horizontalShipCellIndex = placedShip.cellIndex
-            horizontalShipWidth = ships[placedShip.shipIndex].width
+            horizontalShipWidth = ships[placedShip.shipIndex].length
 
             verticalShipX = hoveredCell.x
             verticalShipY = hoveredCell.y
-            verticalShipWidth = pickedShip.width
+            verticalShipWidth = pickedShip.length
           } else {
             horizontalShipCellIndex = index
-            horizontalShipWidth = pickedShip.width
+            horizontalShipWidth = pickedShip.length
 
             const shipPosition = getPositionFromIndex(placedShip.cellIndex, map.size)
             verticalShipX = shipPosition.x
             verticalShipY = shipPosition.y
-            verticalShipWidth = ships[placedShip.shipIndex].width
+            verticalShipWidth = ships[placedShip.shipIndex].length
           }
 
           // TODO: implement get ship line
@@ -413,6 +441,34 @@ const ShipPlacement = ({
     }
   }
 
+  const submitPlacement = () => {
+    if (gameMode !== gameModes.shipPlacement) {
+      return
+    }
+
+    if (isPlacementComplete) {
+      const args: {
+        userId: string,
+        ships: Array<{
+          cellIndex: number,
+          orientation: orientations,
+          length: number,
+        }>
+      } = {
+        userId,
+        ships: placedShips.map(placedShip => {
+          return {
+            cellIndex: placedShip.cellIndex,
+            orientation: placedShip.orientation,
+            length: ships[placedShip.shipIndex].length,
+          }
+        }),
+      }
+
+      socket.emit(eventTypes.placeShips, args)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl py-6 flex">
       <div className="px-3 w-1/2">
@@ -439,7 +495,7 @@ const ShipPlacement = ({
               <div
                 className="absolute origin-bottom-left bg-blue-400"
                 style={{
-                  width: `${cellSize * ship.width}%`,
+                  width: `${cellSize * ship.length}%`,
                   height: `${cellSize}%`,
                   top: `${cellSize * y}%`,
                   left: `${cellSize * x}%`,
@@ -451,7 +507,6 @@ const ShipPlacement = ({
             )
           })}
           {map.cells.map((value, index) => {
-            const position = getPositionFromIndex(index, map.size)
             return (
               <div
                 key={index}
@@ -462,12 +517,12 @@ const ShipPlacement = ({
                 }}
                 onMouseOver={() => handleMouseOver(index)}
                 onClick={() => handleClick(index)}
-              >{position.x},{position.y}</div>
+              ></div>
             )
           })}
         </div>
       </div>
-      <div className="px-3 w-1/2">
+      <div className="px-3 w-1/2 relative">
         <div className="flex flex-wrap aspect-square relative">
           {ships.map((ship, index) => {
             const cellSize = 100 / map.size
@@ -489,7 +544,7 @@ const ShipPlacement = ({
                   "opacity-50": isShipPlaced(index),
                 })}
                 style={{
-                  width: `${cellSize * ship.width}%`,
+                  width: `${cellSize * ship.length}%`,
                   height: `${cellSize}%`,
                   top: `${cellSize * y}%`,
                   left: `${cellSize * x}%`,
@@ -512,13 +567,29 @@ const ShipPlacement = ({
               ></div>
             )
           })}
-          <button 
-            type="button"
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-400 text-24 font-bold rounded-6"
-            onClick={handleRotateClick}
-          >
-            Rotate
-          </button>
+          <div className="w-full absolute bottom-8 text-center">
+            <button
+              type="button"
+              className="px-4 py-2 bg-gray-400 text-24 font-bold rounded-6"
+              onClick={handleRotateClick}
+            >
+              Rotate
+            </button>
+            <button
+              type="button"
+              className={classnames("ml-8 px-4 py-2 bg-gray-400 text-24 font-bold rounded-6", {
+                "opacity-50": !isPlacementComplete,
+              })}
+              onClick={submitPlacement}
+            >
+              Submit
+            </button>
+          </div>
+          {(gameMode === gameModes.waitingForPlayer) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-36 text-white uppercase">
+              Waiting for player
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -528,19 +599,26 @@ const ShipPlacement = ({
 const App = () => {
   const [gameMode, setGameMode] = useState<gameModes>(gameModes.shipPlacement)
 
-  const [map, setMap] = useState<Map|null>(null)
-  const [enemyMap, setEnemyMap] = useState<Map|null>(null)
+  const mapSize = 10
+  const initialMap = {
+    size: mapSize,
+    cells: Array(mapSize * mapSize).fill(0),
+  }
+  const [map, setMap] = useState<Map|null>({ ...initialMap })
+  const [enemyMap, setEnemyMap] = useState<Map|null>({ ...initialMap })
   const [userId, setUserId] = useState(null)
   const [playerAlias, setPlayerAlias] = useState<playerAliases|null>(null)
   const [activePlayer, setActivePlayer] = useState<playerAliases|null>(null)
+  const [winner, setWinner] = useState(null)
+  console.log({ userId, playerAlias, activePlayer })
+
+  const winnerDialogOpen = winner !== null
 
   const handleHit = (args: {
     index: number, 
     playerAlias: playerAliases,
     winner: playerAliases | null,
   }) => {
-    console.log("attack successful", args)
-
     if (args.playerAlias === playerAlias) {
       setMap({
         ...map,
@@ -562,21 +640,18 @@ const App = () => {
     }
 
     if (args.winner) {
-      console.log(`${args.winner} is the winner`)
+      setWinner(args.winner === playerAliases.p1 ? "1" : "2")
     }
   }
 
-  const handleMiss = (args: { index: number, playerAlias: playerAliases }) => {
-    if (args.playerAlias === playerAlias) {
-      setMap({
-        ...map,
-        cells: [
-          ...map.cells.slice(0, args.index),
-          cellTypes.miss,
-          ...map.cells.slice(args.index + 1),
-        ],
-      })
-    } else {
+  const handleMiss = (args: {
+    index: number,
+    attacker: playerAliases,
+    nextActivePlayer: playerAliases,
+  }) => {
+    const currentPlayer = playerAlias
+
+    if (args.attacker === currentPlayer) {
       setEnemyMap({
         ...enemyMap,
         cells: [
@@ -585,8 +660,17 @@ const App = () => {
           ...enemyMap.cells.slice(args.index + 1),
         ],
       })
+    } else {
+      setMap({
+        ...map,
+        cells: [
+          ...map.cells.slice(0, args.index),
+          cellTypes.miss,
+          ...map.cells.slice(args.index + 1),
+        ],
+      })
     }
-    setActivePlayer(activePlayer === playerAliases.p1 ? playerAliases.p2 : playerAliases.p1)
+    setActivePlayer(args.nextActivePlayer)
   }
 
   const handleConnect = () => {
@@ -605,16 +689,31 @@ const App = () => {
     socket.emit(eventTypes.join, { userId })
   }
 
-  const handleJoin = (data: {
-    map: Map,
-    enemyMap: Map,
-    playerAlias: playerAliases,
+  const handleJoin = (data: JoinEventPayload) => {
+    // setMap(data.map)
+    // setEnemyMap(data.enemyMap)
+    setPlayerAlias(data.playerAlias)
+    // setActivePlayer(data.activePlayer)
+  }
+
+  const handleWaitForPlayer = () => {
+    setGameMode(gameModes.waitingForPlayer)
+  }
+
+  const handleReadyForBattle = (args: {
     activePlayer: playerAliases,
   }) => {
-    setMap(data.map)
-    setEnemyMap(data.enemyMap)
-    setPlayerAlias(data.playerAlias)
-    setActivePlayer(data.activePlayer)
+    setGameMode(gameModes.battle)
+    setActivePlayer(args.activePlayer)
+  }
+
+  const restart = () => {
+    setMap({ ...initialMap })
+    setEnemyMap({ ...initialMap })
+    setPlayerAlias(null)
+    setActivePlayer(null)
+    setWinner(null)
+    setGameMode(gameModes.shipPlacement)
   }
 
   useEffect(() => {
@@ -622,13 +721,22 @@ const App = () => {
 
     socket.on(eventTypes.connect, handleConnect)
     socket.on(eventTypes.join, handleJoin)
+    socket.on(eventTypes.waitForPlayer, handleWaitForPlayer)
+    socket.on(eventTypes.readyForBattle, handleReadyForBattle)
     socket.on(eventTypes.disconnect, () => { console.log("disconnected") })
+
+    socket.on(eventTypes.readyForBattle, (map) => {
+      console.log("ready for battle")
+      console.log(map)
+    })
 
     return () => {
       socket.disconnect()
 
       socket.off(eventTypes.connect, handleConnect)
       socket.off(eventTypes.join, handleJoin)
+      socket.off(eventTypes.waitForPlayer, handleWaitForPlayer)
+      socket.off(eventTypes.readyForBattle, handleReadyForBattle)
       socket.off(eventTypes.disconnect, () => { console.log("disconnected") })
     }
   }, [])
@@ -647,33 +755,61 @@ const App = () => {
     return null
   }
 
-  if (gameMode === gameModes.shipPlacement) {
+  if (
+    gameMode === gameModes.shipPlacement ||
+    gameMode === gameModes.waitingForPlayer
+  ) {
     return (
       <ShipPlacement
         map={map}
+        userId={userId}
+        gameMode={gameMode}
       />
     )
   }
 
   return (
-    <div className="mx-auto max-w-5xl py-6 flex">
-      <div className="px-3 w-1/2">
-        <Map 
-          map={map} 
-          isDisabled={true}
-          userId={userId}
-          canBeAttacked={playerAlias !== activePlayer}
-        />
+    <>
+      <div className="mx-auto max-w-5xl py-6 flex">
+        <div className="px-3 w-1/2">
+          <Map 
+            map={map} 
+            isDisabled={true}
+            userId={userId}
+            canBeAttacked={playerAlias !== activePlayer}
+          />
+        </div>
+        <div className="px-3 w-1/2">
+          <Map
+            map={enemyMap} 
+            isDisabled={false}
+            userId={userId}
+            canBeAttacked={playerAlias === activePlayer}
+          />
+        </div>
       </div>
-      <div className="px-3 w-1/2">
-        <Map
-          map={enemyMap} 
-          isDisabled={false}
-          userId={userId}
-          canBeAttacked={playerAlias === activePlayer}
-        />
-      </div>
-    </div>
+      <Dialog
+        open={winnerDialogOpen} 
+        onClose={() => {}}
+        className="relative z-50"
+      >
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+        <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
+          <DialogPanel className="max-w-lg bg-white p-12">
+            <h1>Player {winner} wins!!</h1>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={restart}
+                className="mt-4 px-4 py-2 border border-black"
+              >
+                Restart
+              </button>
+            </div>
+          </DialogPanel>
+        </div>
+      </Dialog>
+    </>
   )
 }
 

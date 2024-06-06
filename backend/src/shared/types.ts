@@ -12,9 +12,14 @@ export const enum playerAliases {
 
 export const enum eventTypes {
   connect = 'connect',
-  join = 'join',
-  fire = 'fire',
   disconnect = 'disconnect',
+  join = 'join',
+
+  placeShips = 'placeShips',
+  waitForPlayer = 'waitForPlayer',
+  readyForBattle = 'readyForBattle',
+
+  fire = 'fire',
   hit = 'hit',
   miss = 'miss',
 }
@@ -22,4 +27,8 @@ export const enum eventTypes {
 export const enum orientations {
   horizontal = "horizontal",
   vertical = "vertical",
+}
+
+export type JoinEventPayload = {
+  playerAlias: playerAliases,
 }
